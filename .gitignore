@@ -1,0 +1,18 @@
+# Build output
+/dist/
+/build/
+
+# Runtime data
+*.db
+/data/
+/.notes/
+
+# Local tooling
+/.vscode/
+/.idea/
+*.log
+
+# Generated packaging staging
+/packaging/app/
+/packaging/ICON.PNG
+/packaging/ICON_256.PNG

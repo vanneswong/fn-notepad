@@ -1,0 +1,229 @@
+#!/bin/sh
+# 记事本 (Notepad) — fnOS 生命周期脚本
+# 用法: main start|stop|status
+# 返回码: 0 = 操作成功 / 正在运行, 3 = 未运行
+set -u
+
+DEST="${TRIM_APPDEST:-/var/apps/notepad/target}"
+VAR="${TRIM_PKGVAR:-/var/apps/notepad/var}"
+PORT="${TRIM_SERVICE_PORT:-18180}"
+
+PID_FILE="$VAR/notepad.pid"
+LOG_FILE="$VAR/notepad.log"
+DATA_DIR="$VAR/notes"
+USERS_FILE="$VAR/users.json"
+SOCKET_FILE="$DEST/notepad.sock"
+
+# 飞牛按架构分发同一个包，所以包里带了三份二进制，这里挑对的用。
+bin_for_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64)  suffix=amd64 ;;
+    aarch64|arm64) suffix=arm64 ;;
+    armv7l|armv6l) suffix=armv7 ;;
+    *)             suffix=amd64 ;;
+  esac
+  for candidate in \
+    "$DEST/app/notepad-$suffix" \
+    "$DEST/notepad-$suffix" \
+    "$DEST/app/notepad" \
+    "$DEST/notepad"
+  do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+running_pid() {
+  [ -f "$PID_FILE" ] || return 1
+  pid=$(cat "$PID_FILE" 2>/dev/null) || return 1
+  [ -n "$pid" ] || return 1
+  case "$pid" in
+    *[!0-9]*) return 1 ;;
+  esac
+  kill -0 "$pid" 2>/dev/null || return 1
+  printf '%s\n' "$pid"
+}
+
+start_app() {
+  if running_pid >/dev/null; then
+    return 0
+  fi
+
+  bin=$(bin_for_arch) || {
+    echo "notepad: no runnable binary found under $DEST (arch $(uname -m))" >&2
+    return 1
+  }
+
+  mkdir -p "$DATA_DIR" "$VAR"
+  rm -f "$PID_FILE"
+
+  # 可选的 HTTPS：默认监听 18181，走同一个 handler。证书来源（按优先级）：
+  #   1) notepad.env 里指定的 NOTEPAD_TLS_CERT / NOTEPAD_TLS_KEY
+  #   2) $VAR/tls/cert.pem + $VAR/tls/key.pem（把飞牛的证书拷进来即可）
+  [ -f "$VAR/notepad.env" ] && . "$VAR/notepad.env"
+  tls_cert="${NOTEPAD_TLS_CERT:-}"
+  tls_key="${NOTEPAD_TLS_KEY:-}"
+  tls_addr="${NOTEPAD_TLS_ADDR:-:18181}"
+  tls_host="${NOTEPAD_TLS_HOST:-}"
+  if [ -z "$tls_cert" ] && [ -r "$VAR/tls/cert.pem" ] && [ -r "$VAR/tls/key.pem" ]; then
+    tls_cert="$VAR/tls/cert.pem"
+    tls_key="$VAR/tls/key.pem"
+  fi
+
+  # 飞牛按域名存放证书（nginx 里是 ssl_certificate $ssl_server_name 动态取）。
+  if [ -z "$tls_cert" ] && [ -n "$tls_host" ]; then
+    for ext in .crt .pem ""; do
+      c="/usr/trim/etc/ssl.crt/${tls_host}${ext}"
+      k="/usr/trim/etc/ssl.key/${tls_host}${ext}"
+      if [ -r "$c" ] && [ -r "$k" ]; then
+        tls_cert="$c"
+        tls_key="$k"
+        break
+      fi
+    done
+  fi
+
+  # 再退一步：直接复用飞牛 nginx 正在用的证书，这样 HTTPS 不需要额外配置。
+  if [ -z "$tls_cert" ]; then
+    nginx_bin=$(command -v nginx 2>/dev/null || true)
+    if [ -z "$nginx_bin" ] && [ -x /usr/trim/nginx/sbin/nginx ]; then
+      nginx_bin=/usr/trim/nginx/sbin/nginx
+    fi
+    if [ -n "$nginx_bin" ]; then
+      conf=$("$nginx_bin" -T 2>/dev/null || true)
+      if [ -n "$conf" ]; then
+        certs=$(printf '%s\n' "$conf" | sed -n 's/^[[:space:]]*ssl_certificate[[:space:]]\{1,\}\([^;]\{1,\}\);[[:space:]]*$/\1/p')
+        keys=$(printf '%s\n' "$conf" | sed -n 's/^[[:space:]]*ssl_certificate_key[[:space:]]\{1,\}\([^;]\{1,\}\);[[:space:]]*$/\1/p')
+        n=0
+        for c in $certs; do
+          n=$((n + 1))
+          k=$(printf '%s\n' "$keys" | sed -n "${n}p")
+          [ -n "$k" ] || continue
+          [ -r "$c" ] && [ -r "$k" ] || continue
+          # 飞牛配置里是 "$ssl_server_name" 这种变量，跳过。
+          case "$c" in \$*) continue ;; esac
+          if [ -z "$tls_cert" ]; then
+            tls_cert="$c"
+            tls_key="$k"
+          fi
+          # 优先用 CA 签发的证书，跳过 nginx 自带的自签默认证书。
+          if command -v openssl >/dev/null 2>&1; then
+            subject=$(openssl x509 -in "$c" -noout -subject 2>/dev/null || true)
+            issuer=$(openssl x509 -in "$c" -noout -issuer 2>/dev/null || true)
+            if [ -n "$subject" ] && [ "$subject" != "$issuer" ]; then
+              tls_cert="$c"
+              tls_key="$k"
+              break
+            fi
+          fi
+        done
+      fi
+    fi
+  fi
+
+  # 最后兜底：都没有就自签一张，至少让 HTTPS 可用（浏览器会提示不受信任）。
+  # 想让证书域名对上，可在 $VAR/notepad.env 里写 NOTEPAD_TLS_HOST=你的域名。
+  if [ -z "$tls_cert" ] && command -v openssl >/dev/null 2>&1; then
+    mkdir -p "$VAR/tls" 2>/dev/null || true
+    if [ -d "$VAR/tls" ] && [ ! -s "$VAR/tls/cert.pem" ]; then
+      host="${tls_host:-$(hostname 2>/dev/null || echo notepad)}"
+      openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+        -subj "/CN=$host" \
+        -addext "subjectAltName=DNS:$host,DNS:localhost,IP:127.0.0.1" \
+        -keyout "$VAR/tls/key.pem" -out "$VAR/tls/cert.pem" >/dev/null 2>&1 || true
+      chmod 600 "$VAR/tls/key.pem" 2>/dev/null || true
+    fi
+    if [ -r "$VAR/tls/cert.pem" ] && [ -r "$VAR/tls/key.pem" ]; then
+      tls_cert="$VAR/tls/cert.pem"
+      tls_key="$VAR/tls/key.pem"
+    fi
+  fi
+
+  # desktop_uidir 指向 $DEST/ui；不同安装方式下载荷可能落在 $DEST/app 下，
+  # 这里补一个软链，保证桌面入口始终能找到界面。
+  if [ -d "$DEST/app/ui" ] && [ ! -e "$DEST/ui" ]; then
+    ln -s app/ui "$DEST/ui" 2>/dev/null || true
+  fi
+
+  # 飞牛网关约定：应用在 ${TRIM_APPDEST}/<appname>.sock 上监听，nginx 把
+  # /app/<appname>/ 反代到这里。failed to start 时下面会把它清掉。
+  rm -f "$SOCKET_FILE"
+
+  if [ -n "$tls_cert" ] && [ -n "$tls_key" ]; then
+    set -- "$bin" -addr "0.0.0.0:$PORT" -data "$DATA_DIR" \
+      -users "$USERS_FILE" \
+      -unix "$SOCKET_FILE" \
+      -tls-addr "$tls_addr" -tls-cert "$tls_cert" -tls-key "$tls_key"
+    echo "notepad: https enabled on $tls_addr (cert: $tls_cert)" >>"$LOG_FILE"
+  else
+    set -- "$bin" -addr "0.0.0.0:$PORT" -data "$DATA_DIR" \
+      -users "$USERS_FILE" -unix "$SOCKET_FILE"
+    echo "notepad: https disabled (put a certificate in $VAR/tls/cert.pem + key.pem)" >>"$LOG_FILE"
+  fi
+
+  # 用一层 sh 把真正的进程号写进 pid 文件，再 exec 成服务本体；这样即便
+  # 借助 setsid 脱离会话，pid 文件里记的也始终是服务自己的进程号。
+  launch='echo $$ > "$1"; shift; exec "$@"'
+  if command -v setsid >/dev/null 2>&1; then
+    setsid sh -c "$launch" _ "$PID_FILE" "$@" >>"$LOG_FILE" 2>&1 &
+  else
+    nohup sh -c "$launch" _ "$PID_FILE" "$@" >>"$LOG_FILE" 2>&1 &
+  fi
+
+  # 等 pid 文件出现，再给服务一点时间确认它还活着（端口占用会立刻退出）。
+  i=0
+  while [ "$i" -lt 10 ] && [ ! -f "$PID_FILE" ]; do
+    sleep 0.3
+    i=$((i + 1))
+  done
+  sleep 0.7
+  if running_pid >/dev/null; then
+    return 0
+  fi
+
+  echo "notepad: failed to start, see $LOG_FILE" >&2
+  return 1
+}
+
+stop_app() {
+  pid=$(running_pid) || {
+    rm -f "$PID_FILE"
+    return 0
+  }
+  kill "$pid" 2>/dev/null || true
+  i=0
+  while [ "$i" -lt 20 ] && kill -0 "$pid" 2>/dev/null; do
+    sleep 0.3
+    i=$((i + 1))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f "$PID_FILE"
+  rm -f "$SOCKET_FILE"
+  return 0
+}
+
+case "${1:-status}" in
+  start)
+    start_app
+    exit $?
+    ;;
+  stop)
+    stop_app
+    exit 0
+    ;;
+  status)
+    if running_pid >/dev/null; then
+      exit 0
+    fi
+    exit 3
+    ;;
+  *)
+    echo "usage: main start|stop|status" >&2
+    exit 2
+    ;;
+esac

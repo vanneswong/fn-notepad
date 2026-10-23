@@ -1,0 +1,23 @@
+appname                    = notepad
+version                    = 1.0.14
+display_name               = 记事本
+desc                       = 简洁优雅的在线记事本，支持新建、打开、阅读、编辑与自动保存，灰白配色，适配桌面与移动端。<br><br>首次打开需要创建账号，之后必须登录才能查看和编辑笔记；可在左下角「设置」里修改密码，「记住账号密码」可免去重复输入。<br><br>访问地址：<br>局域网：<a href="http://192.168.10.232:18180/" target="_blank">http://192.168.10.232:18180/</a><br>外网 HTTPS：<a href="https://fn.myminibase.com:18181/" target="_blank">https://fn.myminibase.com:18181/</a><br><br>数据存储位置：<br>/vol1/@appdata/notepad/notes（卸载应用不会删除）<br>账号文件：/vol1/@appdata/notepad/users.json
+changelog                  = 新建按钮改为圆形「+」；笔记列表与编辑区标题不再显示 .txt 后缀；左下角「设置」新增「操作日志」，可查看登录、新建、重命名、删除、修改密码等最近操作记录。
+source                     = thirdparty
+maintainer                 = vanneswong
+maintainer_url             = https://github.com/vanneswong
+distributor                = vanneswong
+distributor_url            = https://github.com/vanneswong
+support_url                = https://github.com/vanneswong
+platform                   = all
+install_type               = volume
+min_size                   = 10485760
+service_port               = 18180
+service_protocol           = http
+checkport                  = true
+desktop_uidir              = ui
+desktop_applaunchname      = notepad.main
+ctl_stop                   = true
+ctl_uninstall              = true
+disable_authorization_path = false
+os_min_version             = 1.2.0

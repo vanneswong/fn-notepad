@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>记事本</title>
+  <!-- Relative URLs so the app works both at "/" and behind the fnOS gateway
+       path "/app/notepad/". -->
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__head">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <path d="M6 3.75h8.5L19 8.25V20a.75.75 0 0 1-.75.75h-11A.75.75 0 0 1 6.5 20V4.5A.75.75 0 0 1 7.25 3.75Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M14 3.9V8.5h4.6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M9 12.5h6M9 15.75h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand__name">记事本</span>
+        </div>
+        <button class="btn btn--primary btn--new" id="btn-new" type="button" title="新建笔记 (Alt+N)" aria-label="新建笔记">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="M12 5.5v13M5.5 12h13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar__search">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.6"/>
+          <path d="m15.5 15.5 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <input id="search" type="search" placeholder="搜索笔记" autocomplete="off" spellcheck="false" aria-label="搜索笔记">
+      </div>
+
+      <nav class="note-list" id="note-list" aria-label="笔记列表"></nav>
+
+      <div class="sidebar__foot" id="sidebar-foot">
+        <span id="note-count">0 篇笔记</span>
+        <button class="icon-btn icon-btn--compact" id="btn-settings" type="button" title="设置" aria-label="设置">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="2.9" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 3.6v2M12 18.4v2M4.6 7.8l1.7 1M17.7 15.2l1.7 1M4.6 16.2l1.7-1M17.7 8.8l1.7-1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="editor" id="editor">
+      <div class="empty" id="empty">
+        <div class="empty__art" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="64" height="64" fill="none">
+            <rect x="12" y="9" width="40" height="46" rx="5" stroke="currentColor" stroke-width="2"/>
+            <path d="M22 24h20M22 32h20M22 40h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2>开始记录</h2>
+        <p>从左侧选择一篇笔记，或新建一篇开始书写。内容会自动保存。</p>
+        <button class="btn btn--primary" id="btn-new-empty" type="button">新建笔记</button>
+      </div>
+
+      <section class="editor__pane" id="editor-pane" hidden>
+        <header class="editor__head">
+          <button class="icon-btn editor__back" id="btn-back" type="button" title="返回列表" aria-label="返回列表">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <path d="M14.5 6 9 12l5.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <input class="editor__title" id="title" type="text" autocomplete="off" spellcheck="false" aria-label="笔记名称">
+          <div class="editor__actions">
+            <button class="icon-btn" id="btn-font" type="button" title="调整字号" aria-label="调整字号">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M5 18 10 6l5 12M6.8 14.2h6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M16.5 18l3-8 3 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button class="icon-btn" id="btn-rename" type="button" title="重命名" aria-label="重命名">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M4 20h4L19 9a1.8 1.8 0 0 0-2.5-2.5L5.5 17.5 4 20Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button class="icon-btn icon-btn--danger" id="btn-delete" type="button" title="删除" aria-label="删除">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M5 7h14M10 7V5.5h4V7M8 7l.7 12h6.6L16 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <textarea class="editor__area" id="area" spellcheck="false" placeholder="在这里开始书写……"></textarea>
+
+        <footer class="editor__status">
+          <span class="status" id="save-status"><span class="status__dot"></span><span id="save-text">已保存</span></span>
+          <span class="status__meta" id="stats">0 字</span>
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h3 class="modal__title" id="modal-title">标题</h3>
+      <p class="modal__desc" id="modal-desc" hidden></p>
+      <input class="modal__input" id="modal-input" type="text" autocomplete="off" spellcheck="false">
+      <div class="modal__actions">
+        <button class="btn" id="modal-cancel" type="button">取消</button>
+        <button class="btn btn--primary" id="modal-ok" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="settings" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h3 class="modal__title" id="settings-title">设置</h3>
+
+      <div id="settings-menu">
+        <div class="setting-row">
+          <span class="setting-row__label">当前账号</span>
+          <span class="setting-row__value" id="settings-user">—</span>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row__label">记事本版本</span>
+          <span class="setting-row__value" id="settings-version">—</span>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row__label">数据目录</span>
+          <span class="setting-row__value setting-row__value--mono" id="settings-dir">—</span>
+        </div>
+
+        <button class="setting-item" id="settings-pw" type="button">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+            <rect x="5" y="10.5" width="14" height="9" rx="2.2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>修改密码</span>
+          <svg class="setting-item__chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m10 7 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="setting-item" id="settings-logs" type="button">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+            <rect x="5" y="4.5" width="14" height="15" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>操作日志</span>
+          <svg class="setting-item__chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m10 7 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="setting-item" id="settings-logout" type="button">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+            <path d="M14.5 6.5H7.5A1.5 1.5 0 0 0 6 8v8a1.5 1.5 0 0 0 1.5 1.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M12.5 12h7m0 0-2.6-2.6M19.5 12l-2.6 2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>退出登录</span>
+          <svg class="setting-item__chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m10 7 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="settings-pwform" hidden>
+        <p class="modal__desc">修改后其他设备上的登录会失效，本机保持登录。</p>
+        <label class="field">
+          <span class="field__label">当前密码</span>
+          <input class="modal__input" id="pw-current" type="password" autocomplete="current-password">
+        </label>
+        <label class="field">
+          <span class="field__label">新密码</span>
+          <input class="modal__input" id="pw-new" type="password" autocomplete="new-password">
+        </label>
+        <label class="field">
+          <span class="field__label">确认新密码</span>
+          <input class="modal__input" id="pw-confirm" type="password" autocomplete="new-password">
+        </label>
+        <p class="form-error" id="pw-error" hidden></p>
+        <div class="modal__actions">
+          <button class="btn" id="pw-cancel" type="button">返回</button>
+          <button class="btn btn--primary" id="pw-submit" type="submit">保存新密码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal" id="logs" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="logs-title">
+      <h3 class="modal__title" id="logs-title">操作日志</h3>
+      <p class="modal__desc">最近的操作记录，按时间倒序排列。</p>
+      <div class="log-list" id="logs-list"></div>
+      <div class="modal__actions">
+        <button class="btn" id="logs-back" type="button">返回设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 登录 / 首次创建账号。默认隐藏，登录状态由 app.js 决定。 -->
+  <div class="auth" id="auth" hidden>
+    <div class="auth__card">
+      <div class="auth__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+            <path d="M6 3.75h8.5L19 8.25V20a.75.75 0 0 1-.75.75h-11A.75.75 0 0 1 6.5 20V4.5A.75.75 0 0 1 7.25 3.75Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M14 3.9V8.5h4.6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M9 12.5h6M9 15.75h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="brand__name">记事本</span>
+      </div>
+      <h1 class="auth__title" id="auth-title">登录</h1>
+      <p class="auth__desc" id="auth-desc">请输入账号和密码</p>
+      <form class="auth__form" id="auth-form" novalidate>
+        <label class="field">
+          <span class="field__label">账号</span>
+          <input class="modal__input" id="auth-user" type="text" autocomplete="username" spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field__label">密码</span>
+          <input class="modal__input" id="auth-pass" type="password" autocomplete="current-password">
+        </label>
+        <label class="field" id="auth-confirm-field" hidden>
+          <span class="field__label">确认密码</span>
+          <input class="modal__input" id="auth-pass2" type="password" autocomplete="new-password">
+        </label>
+        <label class="check" id="auth-remember-field">
+          <input type="checkbox" id="auth-remember" checked>
+          <span>记住账号密码</span>
+        </label>
+        <p class="form-error" id="auth-error" hidden></p>
+        <button class="btn btn--primary auth__submit" id="auth-submit" type="submit">登录</button>
+      </form>
+      <p class="auth__foot" id="auth-foot">首次使用请创建账号，之后用同一个账号登录。</p>
+    </div>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
