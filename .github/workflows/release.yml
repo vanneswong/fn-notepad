@@ -1,0 +1,48 @@
+name: release
+
+# 每次推送 v* 标签就自动构建 fpk 并发布一个 GitHub Release。
+# 发布步骤：改好 packaging/manifest 的 version 后，
+#   git tag v1.0.15 && git push origin v1.0.15
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: 校验 tag 与 manifest 版本一致
+        run: |
+          V=$(sed -n 's/^ *version *= *//p' packaging/manifest | head -1 | tr -d '\r')
+          if [ "${GITHUB_REF_NAME}" != "v${V}" ]; then
+            echo "tag ${GITHUB_REF_NAME} 与 manifest version ${V} 不一致" >&2
+            exit 1
+          fi
+          echo "building version ${V}"
+
+      - name: 单元测试
+        run: make test
+
+      - name: 静态检查
+        run: make vet
+
+      - name: 打包 fpk
+        run: ./scripts/build-fpk.sh
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.fpk
+          generate_release_notes: true

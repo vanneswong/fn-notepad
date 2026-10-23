@@ -13,6 +13,5 @@
 *.log
 
 # Generated packaging staging
-/packaging/app/
 /packaging/ICON.PNG
 /packaging/ICON_256.PNG

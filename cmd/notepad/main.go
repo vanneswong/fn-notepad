@@ -93,7 +93,8 @@ func main() {
 	var servers []*http.Server
 
 	if *addr != "" {
-		srv := newServer(handler)
+		// HTTP 端口只对 IP 访问开放；用域名访问时重定向到 HTTPS 端口。
+		srv := newServer(httpsRedirect(handler, *tlsAddr))
 		ln, err := net.Listen("tcp", *addr)
 		if err != nil {
 			log.Fatalf("cannot listen on %s: %v", *addr, err)

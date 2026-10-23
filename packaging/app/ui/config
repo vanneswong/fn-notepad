@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "notepad.main": {
+      "title": "记事本",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "",
+      "gatewayPrefix": "/app/notepad",
+      "gatewaySocket": "notepad.sock",
+      "url": "/app/notepad/",
+      "allUsers": true
+    }
+  }
+}
